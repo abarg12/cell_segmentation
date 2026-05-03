@@ -1,6 +1,9 @@
 # Ignore the data directory that will hold the test images and solutions
 data/
 
+# Ignore the results directory that holds the output images
+results/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
