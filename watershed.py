@@ -85,7 +85,7 @@ def watershed(image, markers, mask=None):
                     continue
                 if inQueue[ny, nx] or labels[ny, nx] > 0:
                     continue
-                if mask is not None and not mask[ny, nx]:
+                if mask and not mask[ny, nx]:
                     continue
                 heapq.heappush(heap, (float(image[ny, nx]), ny, nx))
                 inQueue[ny, nx] = True
@@ -111,7 +111,7 @@ def watershed(image, markers, mask=None):
                 continue
             if inQueue[ny, nx] or labels[ny, nx] > 0:
                 continue
-            if mask is not None and not mask[ny, nx]:
+            if mask and not mask[ny, nx]:
                 continue
             heapq.heappush(heap, (float(image[ny, nx]), ny, nx))
             inQueue[ny, nx] = True
@@ -163,7 +163,7 @@ def visualize(img_bgr, masks, gt_masks=None, title="Watershed", save_path=None):
     ax2.set_title(title)
 
     handles = [mpatches.Patch(color='lime', label='Predicted')]
-    if gt_masks is not None:
+    if gt_masks:
         handles.append(mpatches.Patch(color='red', label='Ground Truth'))
     ax2.legend(handles=handles, loc='upper right')
 
@@ -204,7 +204,7 @@ def main(data_dir="data", num_images=10, blur_sigma=2.0,
         img_bgr, _, img_gray = load_image(os.path.join(test_dir, image_id))
         h, w = img_gray.shape
 
-        # run pre-processing and Watershed segmentation and collect timing data
+        # the segment function does pre-processing steps and calls the main Watershed algorithm
         t0 = time.time()
         masks = segment(img_gray, blur_sigma=blur_sigma, min_distance=min_distance)
         elapsed = time.time() - t0

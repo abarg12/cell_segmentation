@@ -13,7 +13,7 @@ def download_bbbc038_test_data(download_dir="data"):
     test_extract_path = os.path.join(download_dir, "stage1_test")
     solution_csv_path = os.path.join(download_dir, "stage1_solution.csv")
     
-    # 1. Download and extract the test images
+    # Download and extract the test images
     if not os.path.exists(test_extract_path):
         print(f"Downloading test images from {test_zip_url}...\n")
         try:
@@ -33,7 +33,7 @@ def download_bbbc038_test_data(download_dir="data"):
     else:
         print(f"Test images already exist at: {test_extract_path}")
 
-    # 2. Download the solution CSV (Ground Truth Annotations)
+    # Download the solution CSV (Ground Truth Annotations)
     if not os.path.exists(solution_csv_path):
         print(f"\nDownloading solution CSV from {solution_csv_url}...\n")
         try:

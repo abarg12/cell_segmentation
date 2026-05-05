@@ -56,7 +56,7 @@ def visualize(img_bgr, masks, gt_masks=None, title='Cellpose Segmentation', save
     ax2.set_title(title)
 
     handles = [mpatches.Patch(color='lime', label='Predicted')]
-    if gt_masks is not None:
+    if gt_masks:
         handles.append(mpatches.Patch(color='red', label='Ground Truth'))
     ax2.legend(handles=handles, loc='upper right')
 

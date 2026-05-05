@@ -75,7 +75,7 @@ def centers_to_min_grad(clusters, img):
                     best_grad = g
  
  
-# for each cluseter center, compute distance to all pixels in its 2S x 2S region
+# for each cluster center, compute distance to all pixels in its 2S x 2S region
 def assign_pixels(clusters, S, img, m, labels, d):
     height, width = img.shape[:2]
     Y, X = np.mgrid[0:height, 0:width]
@@ -318,7 +318,7 @@ def visualize(img_bgr, img_rgb, superpixels, instance_labels,
     ax3.set_title(title)
  
     handles = [mpatches.Patch(color='lime', label='Predicted')]
-    if gt_masks is not None:
+    if gt_masks:
         handles.append(mpatches.Patch(color='red', label='Ground Truth'))
     ax3.legend(handles=handles, loc='upper right')
  
