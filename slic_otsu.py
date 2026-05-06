@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from skimage import color
 from skimage.segmentation import mark_boundaries
-from utils import load_image, load_ground_truth, evaluate_predictions
+from utils import load_image, load_ground_truth, evaluate_predictions, plot_sweep
  
  
 # stores cluster center for a superpixel
@@ -409,9 +409,11 @@ def main(data_dir="data", num_images=10, n_segments=200,
     print("--- SLIC + Otsu summary ---")
     print(f"Mean IoU          : {avg_iou:.4f}")
     print(f"Mean Dice         : {avg_dice:.4f}")
-    print(f"Mean |Count Error|: {round(float(avg_count_err), 2)}")
-    print(f"Mean Runtime (s)  : {round(float(avg_time), 3)}\n")
- 
+    print(f"Mean |Count Error|: {avg_count_err:.4f}")
+    print(f"Mean Runtime (s)  : {avg_time:.4f}\n")
+
+    return avg_iou, avg_dice, float(avg_count_err), float(avg_time)
+
  
 if __name__ == "__main__":
     arg_parser = argparse.ArgumentParser()
@@ -422,11 +424,15 @@ if __name__ == "__main__":
     arg_parser.add_argument("-t", "--test", action="store_true")
     args = arg_parser.parse_args()
     if args.test:
+        os.makedirs("plots/slic", exist_ok=True)
+
         # This test varies the number of superpixels that SLIC is
         # initialized with (n_segments)
-        for val in [50, 100, 200, 400]:
+        n_segment_vals = [50, 100, 200, 400]
+        n_segments_results = []
+        for val in n_segment_vals:
             print(f"Testing n_segments = {val}")
-            main(
+            results = main(
                 data_dir="data",
                 num_images=10,
                 n_segments=val,
@@ -434,13 +440,20 @@ if __name__ == "__main__":
                 min_cell_area=100,
                 iou_thresh=0.5,
                 visualize_results=False,
-                test_mode=True)
+                test_mode=True
+            )
+            n_segments_results.append(results)
+
+        plot_sweep("Number of Segments", n_segment_vals, n_segments_results,
+                   "plots/slic/n_segments.png")
 
         # This test varies the compactness parameter which affects how
         # spatial proximity is weighted against color similarity
-        for val in [5.0, 10.0, 20.0, 40.0]:
+        compactness_vals = [5.0, 10.0, 20.0, 40.0]
+        compactness_results = []
+        for val in compactness_vals:
             print(f"Testing compactness = {val}")
-            main(
+            results = main(
                 data_dir="data",
                 num_images=10,
                 n_segments=200,
@@ -449,6 +462,11 @@ if __name__ == "__main__":
                 iou_thresh=0.5,
                 visualize_results=False,
                 test_mode=True)
+
+            compactness_results.append(results)
+        
+        plot_sweep("Compactness", compactness_vals, compactness_results,
+                   "plots/slic/compactness.png")
 
     # Run SLIC with the default parameters once per image
     else:

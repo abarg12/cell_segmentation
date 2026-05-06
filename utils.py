@@ -6,6 +6,7 @@ import os
 import numpy as np
 import cv2
 from skimage.measure import regionprops
+import matplotlib.pyplot as plt
 
 
 # loads images in 3 color formats
@@ -84,3 +85,32 @@ def evaluate_predictions(pred_labels, gt_masks, iou_thresh=0.5):
  
     return np.mean(ious), np.mean(dices)
 
+
+
+# Plot evaluation metrics (IoU, Dice, count error, runtime) against a swept parameter
+# `results` is a list of (iou, dice, count_err, runtime) tuples in the same order as `param_values`
+def plot_sweep(param_name, param_values, results, output_path):
+    iou_vals    = [r[0] for r in results]
+    dice_vals   = [r[1] for r in results]
+    count_errs  = [r[2] for r in results]
+    runtimes    = [r[3] for r in results]
+
+    fig, axes = plt.subplots(2, 2, figsize=(11, 8))
+    panels = [
+        (iou_vals, "Mean IoU", "C0"),
+        (dice_vals, "Mean Dice", "C1"),
+        (count_errs, "Mean |Count Error|", "C2"),
+        (runtimes, "Mean Runtime (s)", "C3"),
+    ]
+    for ax, (vals, ylabel, color) in zip(axes.flat, panels):
+        ax.plot(param_values, vals, marker="o", color=color)
+        ax.set_xlabel(param_name)
+        ax.set_ylabel(ylabel)
+        ax.set_title(f"{ylabel} vs {param_name}")
+        ax.grid(True, alpha=0.3)
+
+    fig.suptitle(f"Parameter sweep: {param_name}", fontsize=13)
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300)
+    print(f"Saved sweep plot -> {output_path}")
+    plt.close()

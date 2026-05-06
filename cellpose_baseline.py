@@ -149,8 +149,8 @@ def main(data_dir="data", num_images=10, use_gpu=False,
     print("\n------ Cellpose Summary ------")
     print(f"Mean IoU          : {avg_iou:.4f}")
     print(f"Mean Dice         : {avg_dice:.4f}")
-    print(f"Mean |Count Error|: {round(float(avg_count_err), 2)}")
-    print(f"Mean Runtime (s)  : {round(float(avg_time), 3)}")
+    print(f"Mean |Count Error|: {avg_count_err:.4f}")
+    print(f"Mean Runtime (s)  : {avg_time:.4f}\n")
 
 
 if __name__ == "__main__":

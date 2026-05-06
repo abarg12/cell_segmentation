@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from scipy.ndimage import (gaussian_filter, distance_transform_edt,
                            label as scipy_label)
-from utils import load_image, load_ground_truth, evaluate_predictions
+from utils import load_image, load_ground_truth, evaluate_predictions, plot_sweep
 
 
 
@@ -298,8 +298,10 @@ def main(data_dir="data", num_images=10, blur_sigma=2.0,
     print("------ Watershed Summary ------")
     print(f"Mean IoU          : {avg_iou:.4f}")
     print(f"Mean Dice         : {avg_dice:.4f}")
-    print(f"Mean |Count Error|: {round(float(avg_count_err), 2)}")
-    print(f"Mean Runtime (s)  : {round(float(avg_time), 3)}\n")
+    print(f"Mean |Count Error|: {avg_count_err:.4f}")
+    print(f"Mean Runtime (s)  : {avg_time:.4f}\n")
+
+    return avg_iou, avg_dice, float(avg_count_err), float(avg_time)
 
 
 if __name__ == "__main__":
@@ -312,11 +314,15 @@ if __name__ == "__main__":
     args = arg_parser.parse_args()
 
     if args.test:
+        os.makedirs("plots/watershed", exist_ok=True)
+
         # Tests how varying the smoothing (blur_sigma) affects
         # the performance of Watershed segmentation
-        for val in [1.0, 2.0, 4.0, 6.0]:
+        blur_sigma_vals = [1.0, 2.0, 4.0, 6.0]
+        blur_sigma_results = []
+        for val in blur_sigma_vals:
             print(f"Testing blur_sigma = {val}")
-            main(
+            results = main(
                 data_dir="data",
                 num_images=10,
                 blur_sigma=val,
@@ -325,12 +331,18 @@ if __name__ == "__main__":
                 visualize_results=False,
                 test_mode=True
             )
+            blur_sigma_results.append(results)
+        
+        plot_sweep("Blur Sigma", blur_sigma_vals, blur_sigma_results,
+                   "plots/watershed/blur_sigma.png")
 
         # Tests how varying the min_distance affects the
         # performance of Watershed segmentation
-        for val in [5, 10, 15, 20]:
+        min_distance_vals = [5, 10, 15, 20]
+        min_distance_results = []
+        for val in min_distance_vals:
             print(f"Testing min_distance = {val}")
-            main(
+            results = main(
                 data_dir="data",
                 num_images=10,
                 blur_sigma=2.0,
@@ -339,6 +351,10 @@ if __name__ == "__main__":
                 visualize_results=False,
                 test_mode=True
             )
+            min_distance_results.append(results)
+
+        plot_sweep("Minimum Distance", min_distance_vals, min_distance_results,
+                   "plots/watershed/min_distance.png")
 
 
     # Runs Watershed with default parameters once on each image
