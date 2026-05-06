@@ -2,6 +2,7 @@
 Marker-controlled watershed segmentation for cell nucleus images
 """
 
+import argparse
 import os
 import time
 import heapq
@@ -23,7 +24,7 @@ def otsu_threshold(img_gray):
     num_levels = 256
 
     # build histogram by iterating over the pixels and incrementing the bins
-    hist = np.zeros(num_levels, dtype=np.int64)
+    hist = np.zeros(num_levels)
     for r in range(rows):
         for c in range(cols):
             hist[img_gray[r, c]] += 1
@@ -226,7 +227,8 @@ def visualize(img_bgr, masks, gt_masks=None, title="Watershed", save_path=None):
 # Loops over test images, runs Watershed, and then prints and visualizes the results
 def main(data_dir="data", num_images=10, blur_sigma=2.0,
         min_distance=10, iou_threshold=0.5,
-        visualize_results=True, output_dir="results/watershed"):
+        visualize_results=True, output_dir="results/watershed",
+        test_mode=False):
     os.makedirs(output_dir, exist_ok=True)
  
     test_dir = os.path.join(data_dir, "stage1_test")
@@ -268,16 +270,17 @@ def main(data_dir="data", num_images=10, blur_sigma=2.0,
         count_err = numPreds - gt_count
         all_count_errors.append(count_err)
 
-        print("")
-        print(f"Image {img_num}")
-        print(f"Image ID: {image_id}")
-        print(f"  IoU = {round(mean_iou, 3)}")
-        print(f"  Dice = {round(mean_dice, 3)}")
-        print(f"  Num Predictions = {numPreds}")
-        print(f"  Num Ground Truth = {gt_count}")
-        print(f"  Count Error = {count_err}")
-        print(f"  Runtime = {round(elapsed, 3)} s")
-        print("")
+        if not test_mode:
+            print("")
+            print(f"Image {img_num}")
+            print(f"Image ID: {image_id}")
+            print(f"  IoU = {round(mean_iou, 3)}")
+            print(f"  Dice = {round(mean_dice, 3)}")
+            print(f"  Num Predictions = {numPreds}")
+            print(f"  Num Ground Truth = {gt_count}")
+            print(f"  Count Error = {count_err}")
+            print(f"  Runtime = {round(elapsed, 3)} s")
+            print("")
 
         img_num += 1
 
@@ -292,20 +295,60 @@ def main(data_dir="data", num_images=10, blur_sigma=2.0,
     avg_count_err = np.mean(np.abs(all_count_errors))
     avg_time = np.mean(all_times)
 
-    print("\n------ Watershed Summary ------")
+    print("------ Watershed Summary ------")
     print(f"Mean IoU          : {avg_iou:.4f}")
     print(f"Mean Dice         : {avg_dice:.4f}")
     print(f"Mean |Count Error|: {round(float(avg_count_err), 2)}")
-    print(f"Mean Runtime (s)  : {round(float(avg_time), 3)}")
+    print(f"Mean Runtime (s)  : {round(float(avg_time), 3)}\n")
 
 
 if __name__ == "__main__":
-    main(
-        data_dir="data",
-        num_images=10,
-        blur_sigma=2.0,
-        min_distance=10,
-        iou_threshold=0.5,
-        visualize_results=True,
-        output_dir="results/watershed",
-    )
+    arg_parser = argparse.ArgumentParser()
+
+    # Adds option to evaluate variety of SLIC parameters.
+    # Running in this mode will test the effects of varying
+    # n_segments and compactness.
+    arg_parser.add_argument("-t", "--test", action="store_true")
+    args = arg_parser.parse_args()
+
+    if args.test:
+        # Tests how varying the smoothing (blur_sigma) affects
+        # the performance of Watershed segmentation
+        for val in [1.0, 2.0, 4.0, 6.0]:
+            print(f"Testing blur_sigma = {val}")
+            main(
+                data_dir="data",
+                num_images=10,
+                blur_sigma=val,
+                min_distance=10,
+                iou_threshold=0.5,
+                visualize_results=False,
+                test_mode=True
+            )
+
+        # Tests how varying the min_distance affects the
+        # performance of Watershed segmentation
+        for val in [5, 10, 15, 20]:
+            print(f"Testing min_distance = {val}")
+            main(
+                data_dir="data",
+                num_images=10,
+                blur_sigma=2.0,
+                min_distance=val,
+                iou_threshold=0.5,
+                visualize_results=False,
+                test_mode=True
+            )
+
+
+    # Runs Watershed with default parameters once on each image
+    else:
+        main(
+            data_dir="data",
+            num_images=10,
+            blur_sigma=2.0,
+            min_distance=10,
+            iou_threshold=0.5,
+            visualize_results=True,
+            output_dir="results/watershed",
+        )

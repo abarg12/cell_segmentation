@@ -2,6 +2,7 @@
 SLIC + Otsu segmentation for cell nuclei
 """
 
+import argparse
 import os
 import time
 import numpy as np
@@ -205,7 +206,7 @@ def otsu_get_threshold_val(img_gray):
     num_levels = 256
 
     # build histogram by iterating over each pixel and incrementing the bins
-    hist = np.zeros(num_levels, dtype=np.int64)
+    hist = np.zeros(num_levels)
     for r in range(rows):
         for c in range(cols):
             hist[img_gray[r, c]] += 1
@@ -346,7 +347,8 @@ def visualize(img_bgr, img_rgb, superpixels, instance_labels,
  
 def main(data_dir="data", num_images=10, n_segments=200,
          compactness=10.0, min_cell_area=100, iou_thresh=0.5,
-         visualize_results=True, output_dir="results/slic_otsu"):
+         visualize_results=True, output_dir="results/slic_otsu",
+         test_mode=False):
     os.makedirs(output_dir, exist_ok=True)
     solution_df = pd.read_csv(os.path.join(data_dir, "stage1_solution.csv"))
     test_dir = os.path.join(data_dir, "stage1_test")
@@ -379,16 +381,17 @@ def main(data_dir="data", num_images=10, n_segments=200,
         count_err = num_preds - gt_count
         all_count_errors.append(count_err)
  
-        print("")
-        print(f"Image {img_num}")
-        print(f"Image ID: {image_id}")
-        print(f"  IoU = {round(mean_iou, 3)}")
-        print(f"  Dice = {round(mean_dice, 3)}")
-        print(f"  Num Predictions = {num_preds}")
-        print(f"  Num Ground Truth = {gt_count}")
-        print(f"  Count Error = {count_err}")
-        print(f"  Runtime = {round(elapsed, 3)} s")
-        print("")
+        if not test_mode:
+            print("")
+            print(f"Image {img_num}")
+            print(f"Image ID: {image_id}")
+            print(f"  IoU = {round(mean_iou, 3)}")
+            print(f"  Dice = {round(mean_dice, 3)}")
+            print(f"  Num Predictions = {num_preds}")
+            print(f"  Num Ground Truth = {gt_count}")
+            print(f"  Count Error = {count_err}")
+            print(f"  Runtime = {round(elapsed, 3)} s")
+            print("")
  
         img_num += 1
  
@@ -403,21 +406,58 @@ def main(data_dir="data", num_images=10, n_segments=200,
     avg_count_err = np.mean(np.abs(all_count_errors))
     avg_time = np.mean(all_times)
  
-    print("\n--- SLIC + Otsu summary ---")
+    print("--- SLIC + Otsu summary ---")
     print(f"Mean IoU          : {avg_iou:.4f}")
     print(f"Mean Dice         : {avg_dice:.4f}")
     print(f"Mean |Count Error|: {round(float(avg_count_err), 2)}")
-    print(f"Mean Runtime (s)  : {round(float(avg_time), 3)}")
+    print(f"Mean Runtime (s)  : {round(float(avg_time), 3)}\n")
  
  
 if __name__ == "__main__":
-    main(
-        data_dir="data",
-        num_images=10,
-        n_segments=200,
-        compactness=10.0,
-        min_cell_area=100,
-        iou_thresh=0.5,
-        visualize_results=True,
-        output_dir="results/slic_otsu",
-    )
+    arg_parser = argparse.ArgumentParser()
+
+    # Adds option to evaluate variety of SLIC parameters.
+    # Running in this mode will test the effects of varying
+    # n_segments and compactness.
+    arg_parser.add_argument("-t", "--test", action="store_true")
+    args = arg_parser.parse_args()
+    if args.test:
+        # This test varies the number of superpixels that SLIC is
+        # initialized with (n_segments)
+        for val in [50, 100, 200, 400]:
+            print(f"Testing n_segments = {val}")
+            main(
+                data_dir="data",
+                num_images=10,
+                n_segments=val,
+                compactness=10.0,
+                min_cell_area=100,
+                iou_thresh=0.5,
+                visualize_results=False,
+                test_mode=True)
+
+        # This test varies the compactness parameter which affects how
+        # spatial proximity is weighted against color similarity
+        for val in [5.0, 10.0, 20.0, 40.0]:
+            print(f"Testing compactness = {val}")
+            main(
+                data_dir="data",
+                num_images=10,
+                n_segments=200,
+                compactness=val,
+                min_cell_area=100,
+                iou_thresh=0.5,
+                visualize_results=False,
+                test_mode=True)
+
+    # Run SLIC with the default parameters once per image
+    else:
+        main(
+            data_dir="data",
+            num_images=10,
+            n_segments=200,
+            compactness=10.0,
+            min_cell_area=100,
+            iou_thresh=0.5,
+            visualize_results=True,
+            output_dir="results/slic_otsu")
