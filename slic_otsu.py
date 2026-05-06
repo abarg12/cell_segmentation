@@ -11,7 +11,6 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from skimage import color
 from skimage.segmentation import mark_boundaries
-from skimage.filters import threshold_otsu
 from utils import load_image, load_ground_truth, evaluate_predictions
  
  
@@ -123,8 +122,10 @@ def update_cluster_means(clusters, img, labels):
  
         new_y = int(Y[mask].mean())
         new_x = int(X[mask].mean())
-        l, a, b = img[new_y, new_x]
-        c.update(new_y, new_x, l, a, b)
+        new_l = float(img[mask, 0].mean())
+        new_a = float(img[mask, 1].mean())
+        new_b = float(img[mask, 2].mean())
+        c.update(new_y, new_x, new_l, new_a, new_b)
  
  
 # flood fill to find all connected blobs in a binary mask
@@ -202,9 +203,14 @@ def otsu_get_threshold_val(img_gray):
     rows, cols = img_gray.shape
     num_pixels = rows * cols
     num_levels = 256
- 
-    # build normalized histogram (probability of each gray level)
-    hist, _ = np.histogram(img_gray.ravel(), bins=num_levels, range=(0, num_levels))
+
+    # build histogram by iterating over each pixel and incrementing the bins
+    hist = np.zeros(num_levels, dtype=np.int64)
+    for r in range(rows):
+        for c in range(cols):
+            hist[img_gray[r, c]] += 1
+
+    # normalize probability distribution
     prob = hist / num_pixels
  
     best_var = 0
@@ -288,45 +294,50 @@ def segment(img_rgb, img_gray, n_segments=200, compactness=10.0, min_cell_area=1
  
 def visualize(img_bgr, img_rgb, superpixels, instance_labels,
               gt_masks=None, title="SLIC", save_path=None):
- 
     orig_image = img_bgr.copy()
- 
+
     cell_ids = np.unique(instance_labels)
     cell_ids = cell_ids[cell_ids != 0]
- 
+
+    # draw predicted nucleus boundaries in green
     for cell_id in cell_ids:
         mask_u8 = (instance_labels == cell_id).astype(np.uint8) * 255
         contours, _ = cv2.findContours(mask_u8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         cv2.drawContours(orig_image, contours, -1, (0, 255, 0), 1)
- 
+
+    # if ground truth masks exist plot the contours in red
     if gt_masks:
         for gm in gt_masks:
             mask_u8 = gm.astype(np.uint8) * 255
             contours, _ = cv2.findContours(mask_u8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             cv2.drawContours(orig_image, contours, -1, (0, 0, 255), 1)
- 
+
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 7))
- 
+
+    # left panel is the original image
     ax1.imshow(img_rgb)
     ax1.set_title('Original Image')
- 
+
+    # middle panel has the SLIC superpixel grid drawn on
     n_sp = len(np.unique(superpixels))
     ax2.imshow(mark_boundaries(img_rgb, superpixels, color=(1, 0.5, 0)))
     ax2.set_title("SLIC superpixels (n~" + str(n_sp) + ")")
- 
+
+    # right panel has predicted and ground truth contours plotted
     ax3.imshow(cv2.cvtColor(orig_image, cv2.COLOR_BGR2RGB))
     ax3.set_title(title)
- 
+
     handles = [mpatches.Patch(color='lime', label='Predicted')]
     if gt_masks:
         handles.append(mpatches.Patch(color='red', label='Ground Truth'))
     ax3.legend(handles=handles, loc='upper right')
- 
+
     ax1.axis('off')
     ax2.axis('off')
     ax3.axis('off')
- 
+
     plt.tight_layout()
+    # save to disk if a path was given
     if save_path is not None:
         plt.savefig(save_path)
         print(f"Saved visualization -> {save_path}")

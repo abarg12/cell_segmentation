@@ -4,7 +4,6 @@ helper functions used in all segmentation scripts
 
 import os
 import numpy as np
-import pandas as pd
 import cv2
 from skimage.measure import regionprops
 

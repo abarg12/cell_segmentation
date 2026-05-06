@@ -10,8 +10,7 @@ import cv2
 from cellpose import models
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-from skimage.measure import regionprops
-from utils import load_image, load_ground_truth, iou, dice, evaluate_predictions
+from utils import load_image, load_ground_truth, evaluate_predictions
 
 
 # Runs Cellpose on a grayscale image
@@ -34,13 +33,15 @@ def visualize(img_bgr, masks, gt_masks=None, title='Cellpose Segmentation', save
     orig_image = img_bgr.copy()
 
     cell_ids = np.unique(masks)
-    cell_ids = cell_ids[cell_ids != 0] 
+    cell_ids = cell_ids[cell_ids != 0]
 
+    # draw predicted nucleus boundaries in green
     for cell_id in cell_ids:
         mask_u8 = (masks == cell_id).astype(np.uint8) * 255
         contours, _ = cv2.findContours(mask_u8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         cv2.drawContours(orig_image, contours, -1, (0, 255, 0), 1)
 
+    # if ground truth masks exist plot the contours in red
     if gt_masks:
         for gm in gt_masks:
             mask_u8 = gm.astype(np.uint8) * 255
@@ -49,9 +50,11 @@ def visualize(img_bgr, masks, gt_masks=None, title='Cellpose Segmentation', save
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
 
+    # left panel is the original image
     ax1.imshow(cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB))
     ax1.set_title('Original Image')
-    
+
+    # right panel has predicted and ground truth contours plotted
     ax2.imshow(cv2.cvtColor(orig_image, cv2.COLOR_BGR2RGB))
     ax2.set_title(title)
 
@@ -64,6 +67,7 @@ def visualize(img_bgr, masks, gt_masks=None, title='Cellpose Segmentation', save
     ax2.axis('off')
 
     plt.tight_layout()
+    # save to disk if a path was given
     if save_path is not None:
         plt.savefig(save_path)
         print(f"Saved visualization -> {save_path}")

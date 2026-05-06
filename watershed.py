@@ -11,20 +11,24 @@ import cv2
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from scipy.ndimage import (gaussian_filter, distance_transform_edt,
-                           maximum_filter, label as scipy_label)
-from skimage.measure import regionprops
-from utils import load_image, load_ground_truth, iou, dice, evaluate_predictions
+                           label as scipy_label)
+from utils import load_image, load_ground_truth, evaluate_predictions
 
 
 
-# perform Otsu thresholding to identify foregrond and background
+# perform Otsu thresholding binarize image into foreground and background
 def otsu_threshold(img_gray):
     rows, cols = img_gray.shape
     num_pixels = rows * cols
     num_levels = 256
- 
-    # build normalized histogram (probability of each gray level)
-    hist, _ = np.histogram(img_gray.ravel(), bins=num_levels, range=(0, num_levels))
+
+    # build histogram by iterating over the pixels and incrementing the bins
+    hist = np.zeros(num_levels, dtype=np.int64)
+    for r in range(rows):
+        for c in range(cols):
+            hist[img_gray[r, c]] += 1
+
+    # normalize probability distribution
     prob = hist / num_pixels
  
     best_var = 0
@@ -42,7 +46,7 @@ def otsu_threshold(img_gray):
         mean_bg = sum(level * prob[level] for level in range(0, threshold+1)) / weight_bg
         mean_fg = sum(level * prob[level] for level in range(threshold+1, num_levels)) / weight_fg
  
-        # Otsu criterion: maximize between-class variance
+        # maximize between-class variance
         between_class_var = weight_bg * weight_fg * (mean_bg - mean_fg) ** 2
  
         if between_class_var > best_var:
@@ -50,17 +54,46 @@ def otsu_threshold(img_gray):
             best_threshold = threshold
  
     binary = img_gray > best_threshold
-    # invert if foreground is the majority (dark nuclei on bright background)
+    # invert if foreground is the majority, dark nuclei on bright background
     if binary.sum() > binary.size * 0.5:
         binary = ~binary
     return binary
 
 
 # checks neighbors to see if pixel is local maximum
+#
+# For each pixel, look at the (2*min_distance+1) by (2*min_distance+1) square
+# window centered on it. A pixel qualifies as a local maximum if it has
+# the largest value in that window
 def find_local_maxima(image, min_distance=10):
-    size = 2 * min_distance + 1
-    neighborhood_max = maximum_filter(image, size=size, mode='constant', cval=0)
-    local_max = (image == neighborhood_max) & (image > 0)
+    H, W = image.shape
+    half = min_distance
+
+    local_max = np.zeros((H, W), dtype=bool)
+
+    for y in range(H):
+        for x in range(W):
+            # background pixels can't be markers
+            if image[y, x] <= 0:
+                continue
+
+            # clamp the (2*half+1) by (2*half+1) window to the image bounds
+            y0 = max(0, y - half)
+            y1 = min(H, y + half + 1)
+            x0 = max(0, x - half)
+            x1 = min(W, x + half + 1)
+
+            # find the maximum value inside the window
+            window_max = image[y0, x0]
+            for wy in range(y0, y1):
+                for wx in range(x0, x1):
+                    if image[wy, wx] > window_max:
+                        window_max = image[wy, wx]
+
+            # this pixel is a local max if its value equals the window max
+            if image[y, x] == window_max:
+                local_max[y, x] = True
+
     return local_max
 
 
@@ -68,9 +101,16 @@ def find_local_maxima(image, min_distance=10):
 # Requires markers to be passed in as a parameter to start the flooding.
 def watershed(image, markers, mask=None):
     H, W = image.shape
-    labels = markers.copy().astype(np.int32)
+
+    # labels will hold the result of flooding
+    labels = markers.copy()
+
+    # inQueue keeps track of which pixels we have already added to queue
     inQueue = np.zeros((H, W), dtype=bool)
-    heap = []
+
+    # keeps track of the pixels we are actively checking
+    priorityQueue = []
+
     neighbors = [(-1,0), (1,0), (0,-1), (0,1)]
 
     # add unlabeled pixels to queue if they are adjacent to markers
@@ -85,13 +125,14 @@ def watershed(image, markers, mask=None):
                     continue
                 if inQueue[ny, nx] or labels[ny, nx] > 0:
                     continue
-                if mask and not mask[ny, nx]:
+                if mask is not None and not mask[ny, nx]:
                     continue
-                heapq.heappush(heap, (float(image[ny, nx]), ny, nx))
+                heapq.heappush(priorityQueue, (float(image[ny, nx]), ny, nx))
                 inQueue[ny, nx] = True
 
-    while len(heap) > 0:
-        _, y, x = heapq.heappop(heap)
+    # continue iterating to flood 
+    while len(priorityQueue) > 0:
+        _, y, x = heapq.heappop(priorityQueue)
 
         neighborLabels = set()
         for dy, dx in neighbors:
@@ -111,9 +152,9 @@ def watershed(image, markers, mask=None):
                 continue
             if inQueue[ny, nx] or labels[ny, nx] > 0:
                 continue
-            if mask and not mask[ny, nx]:
+            if mask is not None and not mask[ny, nx]:
                 continue
-            heapq.heappush(heap, (float(image[ny, nx]), ny, nx))
+            heapq.heappush(priorityQueue, (float(image[ny, nx]), ny, nx))
             inQueue[ny, nx] = True
 
     return labels
@@ -141,13 +182,15 @@ def visualize(img_bgr, masks, gt_masks=None, title="Watershed", save_path=None):
     orig_image = img_bgr.copy()
 
     cell_ids = np.unique(masks)
-    cell_ids = cell_ids[cell_ids != 0] 
+    cell_ids = cell_ids[cell_ids != 0]
 
+    # draw each predicted nucleus boundary in green
     for cell_id in cell_ids:
         mask_u8 = (masks == cell_id).astype(np.uint8) * 255
         contours, _ = cv2.findContours(mask_u8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         cv2.drawContours(orig_image, contours, -1, (0, 255, 0), 1)
 
+    # if ground truth masks exist plot the contours in red
     if gt_masks:
         for gm in gt_masks:
             mask_u8 = gm.astype(np.uint8) * 255
@@ -156,9 +199,11 @@ def visualize(img_bgr, masks, gt_masks=None, title="Watershed", save_path=None):
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
 
+    # left figure is the original image
     ax1.imshow(cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB))
     ax1.set_title('Original Image')
-    
+
+    # right figure has predicted and ground truth contours plotted
     ax2.imshow(cv2.cvtColor(orig_image, cv2.COLOR_BGR2RGB))
     ax2.set_title(title)
 
@@ -167,10 +212,11 @@ def visualize(img_bgr, masks, gt_masks=None, title="Watershed", save_path=None):
         handles.append(mpatches.Patch(color='red', label='Ground Truth'))
     ax2.legend(handles=handles, loc='upper right')
 
-    for ax in (ax1, ax2):
-        ax.axis('off')
+    ax1.axis('off')
+    ax2.axis('off')
 
     plt.tight_layout()
+    # save to disk if a path was given
     if save_path is not None:
         plt.savefig(save_path)
         print(f"Saved visualization -> {save_path}")
