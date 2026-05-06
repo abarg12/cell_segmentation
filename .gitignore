@@ -4,6 +4,9 @@ data/
 # Ignore the results directory that holds the output images
 results/
 
+# Ignore the plot directory that holds the graphs
+plots/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
